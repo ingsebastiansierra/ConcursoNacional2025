@@ -5,15 +5,20 @@ import RegisterForm from '../components/RegisterForm';
 
 interface AuthScreenProps {
   onAuthSuccess?: () => void;
+  onAdminAuthSuccess?: () => void;
 }
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, onAdminAuthSuccess }) => {
   const [showLogin, setShowLogin] = useState(true);
 
   return (
     <View style={styles.container}>
       {showLogin ? (
-        <LoginForm onSwitch={() => setShowLogin(false)} onAuthSuccess={onAuthSuccess} />
+        <LoginForm 
+          onSwitch={() => setShowLogin(false)} 
+          onAuthSuccess={onAuthSuccess}
+          onAdminAuthSuccess={onAdminAuthSuccess}
+        />
       ) : (
         <RegisterForm onSwitch={() => setShowLogin(true)} onAuthSuccess={onAuthSuccess} />
       )}

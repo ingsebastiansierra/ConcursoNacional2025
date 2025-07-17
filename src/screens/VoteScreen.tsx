@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToDrivers, likeDriver, subscribeToUserVotes, getDriverLikes } from '../services/firestoreService';
+import { subscribeToDrivers, likeDriver, subscribeToUserVotes, getDriverLikes, getContestConfig } from '../services/firestoreService';
 import { getAuth } from 'firebase/auth';
 
 interface Driver {
@@ -23,6 +23,7 @@ const VoteScreen = () => {
   const [likesModalVisible, setLikesModalVisible] = useState(false);
   const [likesList, setLikesList] = useState<{userId: string, userName: string}[]>([]);
   const [modalDriver, setModalDriver] = useState<Driver | null>(null);
+  const [contestActive, setContestActive] = useState(true);
   const user = getAuth().currentUser;
   const userId = user?.uid || '';
 
@@ -35,6 +36,18 @@ const VoteScreen = () => {
     if (userId) {
       unsubscribeVotes = subscribeToUserVotes(userId, setVotesUsed);
     }
+
+    // Verificar estado del concurso
+    const checkContestStatus = async () => {
+      try {
+        const config = await getContestConfig();
+        setContestActive(config.isActive);
+      } catch (error) {
+        console.error('Error verificando estado del concurso:', error);
+      }
+    };
+    checkContestStatus();
+
     return () => {
       unsubscribeDrivers();
       unsubscribeVotes();
@@ -42,13 +55,23 @@ const VoteScreen = () => {
   }, [userId]);
 
   const handleLike = async (id: string) => {
+    if (!contestActive) {
+      Alert.alert('Concurso Pausado', 'El concurso está pausado. No se pueden emitir votos en este momento.');
+      return;
+    }
+    
     if (votesUsed >= MAX_VOTES) {
       Alert.alert('Límite alcanzado', 'Ya usaste tus 10 votos disponibles.');
       return;
     }
+    
     setLiking(id);
-    await likeDriver(id, userId); // Puede votar varias veces por el mismo piloto
+    const result = await likeDriver(id, userId);
     setLiking(null);
+    
+    if (!result.success) {
+      Alert.alert('Error', result.message);
+    }
   };
 
   const handleShowLikes = async (driver: Driver) => {
@@ -71,16 +94,25 @@ const VoteScreen = () => {
 
   const renderDriver = ({ item }: { item: Driver }) => (
     <View style={styles.card}>
-      <Image source={{ uri: item.imageUrl }} style={styles.image} />
+      <Image 
+        source={item.imageUrl && item.imageUrl.trim() !== '' 
+          ? { uri: item.imageUrl } 
+          : require('../../assets/icon.png')
+        } 
+        style={styles.image} 
+      />
       <View style={styles.info}>
         <Text style={styles.name}>{item.conductor}</Text>
         <Text style={styles.plate}>Placa: {item.placa}</Text>
         <Text style={styles.competitor}>Competidor #{item.NCompetidor}</Text>
         <View style={styles.likesRow}>
           <TouchableOpacity
-            style={[styles.likeButton, (votesUsed >= MAX_VOTES) && { opacity: 0.5 }]}
+            style={[
+              styles.likeButton, 
+              (votesUsed >= MAX_VOTES || !contestActive) && { opacity: 0.5 }
+            ]}
             onPress={() => handleLike(item.id)}
-            disabled={liking === item.id || votesUsed >= MAX_VOTES}
+            disabled={liking === item.id || votesUsed >= MAX_VOTES || !contestActive}
           >
             <Ionicons name="heart" size={24} color="#d32f2f" />
             <Text style={styles.likeText}>Like</Text>
@@ -100,6 +132,15 @@ const VoteScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>¡Vota por tu piloto favorito!</Text>
+      
+      {!contestActive && (
+        <View style={styles.contestPausedContainer}>
+          <Ionicons name="pause-circle" size={32} color="#ff9800" />
+          <Text style={styles.contestPausedText}>El concurso está pausado</Text>
+          <Text style={styles.contestPausedSubtext}>No se pueden emitir votos en este momento</Text>
+        </View>
+      )}
+      
       <Text style={styles.votesLeft}>Te quedan <Text style={{ color: votesUsed >= MAX_VOTES ? '#d32f2f' : '#1a237e', fontWeight: 'bold' }}>{MAX_VOTES - votesUsed}</Text> votos</Text>
       {votesUsed >= MAX_VOTES && (
         <Text style={styles.warning}>Ya no tienes más likes disponibles.</Text>
@@ -167,6 +208,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 10,
+  },
+  contestPausedContainer: {
+    backgroundColor: '#fff3e0',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ff9800',
+  },
+  contestPausedText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#e65100',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  contestPausedSubtext: {
+    fontSize: 14,
+    color: '#f57c00',
+    marginTop: 4,
+    textAlign: 'center',
   },
   card: {
     flexDirection: 'row',

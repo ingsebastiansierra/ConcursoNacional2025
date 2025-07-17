@@ -2,24 +2,46 @@ import React, { useState } from 'react';
 import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import authService from '../services/authService';
+import { getAuth } from 'firebase/auth';
 
 type Props = {
   onSwitch: () => void;
   onAuthSuccess?: () => void;
+  onAdminAuthSuccess?: () => void;
 };
 
-const LoginForm: React.FC<Props> = ({ onSwitch, onAuthSuccess }) => {
+const LoginForm: React.FC<Props> = ({ onSwitch, onAuthSuccess, onAdminAuthSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     setError(null);
+    setLoading(true);
+    
     try {
-      await authService.login(email, password);
-      if (onAuthSuccess) onAuthSuccess();
+      const userCredential = await authService.login(email, password);
+      const user = userCredential.user;
+      
+      // Verificar si es administrador
+      const isUserAdmin = await authService.isAdmin(user);
+      
+      if (isUserAdmin) {
+        // Si es administrador, llamar a la función específica
+        if (onAdminAuthSuccess) {
+          onAdminAuthSuccess();
+        }
+      } else {
+        // Si es usuario normal, llamar a la función normal
+        if (onAuthSuccess) {
+          onAuthSuccess();
+        }
+      }
     } catch (err: any) {
       setError('Correo o contraseña incorrectos');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,7 +70,12 @@ const LoginForm: React.FC<Props> = ({ onSwitch, onAuthSuccess }) => {
             secureTextEntry
           />
         </View>
-        <Button title="Entrar" onPress={handleLogin} color="#1a237e" />
+        <Button 
+          title={loading ? "Entrando..." : "Entrar"} 
+          onPress={handleLogin} 
+          color="#1a237e"
+          disabled={loading}
+        />
         {error && <Text style={styles.error}>{error}</Text>}
         <Text style={styles.switchText} onPress={onSwitch}>
           ¿No tienes cuenta? <Text style={styles.link}>Regístrate</Text>

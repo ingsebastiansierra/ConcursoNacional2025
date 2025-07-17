@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToDrivers } from '../services/firestoreService';
+import { subscribeToDrivers, getContestConfig } from '../services/firestoreService';
 
 interface Driver {
   id: string;
@@ -15,19 +15,38 @@ interface Driver {
 const RankingScreen = () => {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contestActive, setContestActive] = useState(true);
 
   useEffect(() => {
     const unsubscribe = subscribeToDrivers((data) => {
       setDrivers(data.sort((a, b) => b.NumeroLikes - a.NumeroLikes));
       setLoading(false);
     });
+
+    // Verificar estado del concurso
+    const checkContestStatus = async () => {
+      try {
+        const config = await getContestConfig();
+        setContestActive(config.isActive);
+      } catch (error) {
+        console.error('Error verificando estado del concurso:', error);
+      }
+    };
+    checkContestStatus();
+
     return () => unsubscribe();
   }, []);
 
   const renderDriver = ({ item, index }: { item: Driver; index: number }) => (
     <View style={styles.card}>
       <Text style={styles.position}>{index + 1}</Text>
-      <Image source={{ uri: item.imageUrl }} style={styles.image} />
+      <Image 
+        source={item.imageUrl && item.imageUrl.trim() !== '' 
+          ? { uri: item.imageUrl } 
+          : require('../../assets/icon.png')
+        } 
+        style={styles.image} 
+      />
       <View style={styles.info}>
         <Text style={styles.name}>{item.conductor}</Text>
         <Text style={styles.plate}>Placa: {item.placa}</Text>
@@ -47,6 +66,14 @@ const RankingScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Ranking en Vivo</Text>
+      
+      {!contestActive && (
+        <View style={styles.contestPausedContainer}>
+          <Ionicons name="pause-circle" size={24} color="#ff9800" />
+          <Text style={styles.contestPausedText}>Concurso Pausado</Text>
+        </View>
+      )}
+      
       <FlatList
         data={drivers}
         renderItem={renderDriver}
@@ -71,6 +98,23 @@ const styles = StyleSheet.create({
     marginTop: 32,
     marginBottom: 16,
     textAlign: 'center',
+  },
+  contestPausedContainer: {
+    backgroundColor: '#fff3e0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ff9800',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  contestPausedText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e65100',
+    marginLeft: 8,
   },
   card: {
     flexDirection: 'row',
