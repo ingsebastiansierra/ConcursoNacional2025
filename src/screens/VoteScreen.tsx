@@ -99,7 +99,9 @@ const VoteScreen = () => {
           ? { uri: item.imageUrl } 
           : require('../../assets/icon.png')
         } 
-        style={styles.image} 
+        style={styles.image}
+        defaultSource={require('../../assets/icon.png')}
+        onError={() => console.log('Error cargando imagen para el piloto:', item.conductor)}
       />
       <View style={styles.info}>
         <Text style={styles.name}>{item.conductor}</Text>

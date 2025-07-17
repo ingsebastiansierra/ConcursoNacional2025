@@ -10,6 +10,11 @@ const firebaseConfig = {
   measurementId: 'G-F22YYC2RB6',
 };
 
-const app = initializeApp(firebaseConfig);
+// Configuración específica para React Native
+const app = initializeApp(firebaseConfig, {
+  // Configuración adicional para React Native
+  experimentalForceLongPolling: true,
+  useFetchStreams: false,
+});
 
 export default app; 

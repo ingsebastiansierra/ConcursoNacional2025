@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, Modal, TextInput, Pressable } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, Modal, TextInput, Pressable, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
 import {
@@ -25,6 +25,12 @@ interface ContestStats {
   topDriver: any;
 }
 
+const COLORS = [
+  { border: '#43a047', shadow: 'rgba(67,160,71,0.25)' },    // 1° verde
+  { border: '#1976d2', shadow: 'rgba(25,118,210,0.25)' },   // 2° azul
+  { border: '#fb8c00', shadow: 'rgba(251,140,0,0.25)' },    // 3° naranja
+];
+
 const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, onNavigateToDrivers }) => {
   const auth = getAuth();
   const [loading, setLoading] = useState(true);
@@ -49,6 +55,12 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
     imageUrl: ''
   });
   const [addingDriver, setAddingDriver] = useState(false);
+
+  const pulseAnim = useRef([
+    new Animated.Value(1),
+    new Animated.Value(1),
+    new Animated.Value(1),
+  ]).current;
 
   const loadDashboardData = async () => {
     try {
@@ -82,6 +94,23 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
 
   useEffect(() => {
     loadDashboardData();
+    // Animación de pálpito para los 3 primeros
+    pulseAnim.forEach((anim, idx) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 1.08,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
   }, []);
 
   const handleLogout = async () => {
@@ -315,16 +344,47 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
         </View>
         {topDrivers.length > 0 ? (
           topDrivers.map((driver, index) => (
-            <View key={driver.id} style={styles.topDriverCard}>
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankText}>{index + 1}</Text>
+            index < 3 ? (
+              <Animated.View
+                key={driver.id}
+                style={[
+                  styles.topDriverCard,
+                  {
+                    borderColor: COLORS[index].border,
+                    borderWidth: 2,
+                    shadowColor: COLORS[index].shadow,
+                    shadowOpacity: 0.5,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 4 },
+                    backgroundColor: '#fff',
+                    alignSelf: 'center',
+                    maxWidth: '92%',
+                    width: '92%',
+                    transform: [{ scale: pulseAnim[index] }],
+                  },
+                ]}
+              >
+                <View style={[styles.rankBadge, { borderColor: COLORS[index].border }] }>
+                  <Text style={[styles.rankText, { color: COLORS[index].border }]}>{index + 1}</Text>
+                </View>
+                <View style={styles.driverInfo}>
+                  <Text style={styles.driverName}>{driver.conductor || 'Piloto'}</Text>
+                  <Text style={styles.driverVotes}>{driver.NumeroLikes || 0} votos</Text>
+                </View>
+                <Ionicons name="trophy" size={24} color={index === 0 ? '#ffd700' : index === 1 ? '#1976d2' : '#fb8c00'} />
+              </Animated.View>
+            ) : (
+              <View key={driver.id} style={styles.topDriverCard}>
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankText}>{index + 1}</Text>
+                </View>
+                <View style={styles.driverInfo}>
+                  <Text style={styles.driverName}>{driver.conductor || 'Piloto'}</Text>
+                  <Text style={styles.driverVotes}>{driver.NumeroLikes || 0} votos</Text>
+                </View>
+                <Ionicons name="trophy" size={24} color="#c0c0c0" />
               </View>
-              <View style={styles.driverInfo}>
-                <Text style={styles.driverName}>{driver.conductor || 'Piloto'}</Text>
-                <Text style={styles.driverVotes}>{driver.NumeroLikes || 0} votos</Text>
-              </View>
-              <Ionicons name="trophy" size={24} color={index === 0 ? '#ffd700' : '#c0c0c0'} />
-            </View>
+            )
           ))
         ) : (
           <View style={styles.emptyState}>
