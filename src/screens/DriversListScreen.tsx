@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, TextInput, Modal, Button, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
 
 interface DriversListScreenProps {
   onLogout?: () => void;
@@ -23,6 +24,12 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
   const [filteredDrivers, setFilteredDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editDriver, setEditDriver] = useState<Driver | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNumber, setEditNumber] = useState('');
+  const [editPlate, setEditPlate] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
 
   const loadDrivers = async () => {
     try {
@@ -150,6 +157,55 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
     );
   };
 
+  const handleEditDriver = async (driver: Driver) => {
+    try {
+      const db = getFirestore();
+      const driverRef = doc(db, 'drivers', driver.id);
+      const driverDoc = await getDoc(driverRef);
+      const driverData = driverDoc.data();
+      setEditDriver(driver);
+      setEditName(driverData?.conductor || '');
+      setEditNumber(driverData?.NCompetidor ? String(driverData.NCompetidor) : '');
+      setEditPlate(driverData?.placa || '');
+      setEditImageUrl(driverData?.imageUrl || '');
+      setEditModalVisible(true);
+    } catch (error) {
+      Alert.alert('❌ Error', 'No se pudieron cargar los datos del piloto para editar');
+    }
+  };
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setEditImageUrl(result.assets[0].uri);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDriver) return;
+    try {
+      const db = getFirestore();
+      const driverRef = doc(db, 'drivers', editDriver.id);
+      await updateDoc(driverRef, {
+        conductor: editName,
+        NCompetidor: Number(editNumber),
+        placa: editPlate,
+        imageUrl: editImageUrl,
+      });
+      setEditModalVisible(false);
+      setEditDriver(null);
+      loadDrivers();
+      Alert.alert('✅ Éxito', 'Piloto actualizado correctamente');
+    } catch (error) {
+      Alert.alert('❌ Error', 'No se pudo actualizar el piloto');
+    }
+  };
+
   const getRankColor = (index: number) => {
     switch (index) {
       case 0: return '#ffd700'; // Oro
@@ -183,6 +239,12 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
         </View>
       </View>
       <View style={styles.driverActions}>
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.editButton]} 
+          onPress={() => handleEditDriver(item)}
+        >
+          <Ionicons name="create" size={16} color="#fff" />
+        </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.actionButton, styles.resetButton]} 
           onPress={() => handleResetDriverVotes(item)}
@@ -242,6 +304,54 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
         <Ionicons name="refresh" size={20} color="#fff" />
         <Text style={styles.refreshText}>Actualizar</Text>
       </TouchableOpacity>
+
+      {/* Modal de edición */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Editar Piloto</Text>
+            {/* Imagen actual */}
+            {editImageUrl ? (
+              <Image source={{ uri: editImageUrl }} style={{ width: 90, height: 90, borderRadius: 45, alignSelf: 'center', marginBottom: 12 }} />
+            ) : (
+              <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: '#eee', alignSelf: 'center', marginBottom: 12, justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="image" size={36} color="#bbb" />
+              </View>
+            )}
+            <TouchableOpacity onPress={handlePickImage} style={{ alignSelf: 'center', marginBottom: 16 }}>
+              <Text style={{ color: '#1a237e', textDecorationLine: 'underline', fontWeight: 'bold' }}>Cambiar imagen</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              placeholder="Nombre"
+              value={editName}
+              onChangeText={setEditName}
+            />
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              placeholder="Número de Competidor"
+              value={editNumber}
+              onChangeText={setEditNumber}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              placeholder="Placa"
+              value={editPlate}
+              onChangeText={setEditPlate}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+              <Button title="Cancelar" color="#888" onPress={() => setEditModalVisible(false)} />
+              <Button title="Guardar" color="#1a237e" onPress={handleSaveEdit} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -385,6 +495,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+  },
+  editButton: {
+    backgroundColor: '#4caf50', // Verde para editar
   },
   resetButton: {
     backgroundColor: '#ff9800',

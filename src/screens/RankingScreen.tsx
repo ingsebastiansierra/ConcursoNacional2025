@@ -51,14 +51,14 @@ const RankingScreen = () => {
       Animated.loop(
         Animated.sequence([
           Animated.timing(anim, {
-            toValue: 1.08,
+            toValue: 1.04, // antes 1.2
             duration: 600,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(anim, {
             toValue: 1,
             duration: 600,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ])
       ).start();
@@ -68,75 +68,68 @@ const RankingScreen = () => {
   }, []);
 
   const MemoDriverCard = memo(({ item, index, pulseAnim }: { item: Driver; index: number; pulseAnim: Animated.Value[] }) => {
-    if (index < 3) {
-      const color = COLORS[index];
+    const isTop3 = index < 3;
+    const color = COLORS[index] || COLORS[2];
+    if (isTop3) {
+      // Solo animar la escala para depuración
+      const animatedScale = pulseAnim[index].interpolate({ inputRange: [1, 1.08], outputRange: [1, 1.08] });
       return (
         <Animated.View
           style={[
-            styles.card,
+            styles.cardRow,
             {
+              position: 'relative',
+              borderWidth: 3,
               borderColor: color.border,
-              borderWidth: 2,
-              shadowColor: color.border,
-              shadowOpacity: 0.5,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 4 },
               backgroundColor: '#fff',
-              transform: [{ scale: pulseAnim[index] }],
-              alignSelf: 'center',
-              maxWidth: '92%',
-              width: '92%',
+              transform: [{ scale: animatedScale }],
             },
           ]}
         >
-          <Text style={[styles.position, { color: color.border }]}>{index + 1}</Text>
-          <Image
-            source={item.imageUrl && item.imageUrl.trim() !== ''
-              ? { uri: item.imageUrl }
-              : require('../../assets/icon.png')
-            }
-            style={[
-              styles.image,
-              {
-                borderColor: color.border,
-                borderWidth: 2,
-                shadowColor: color.shadow,
-                shadowOpacity: 0.7,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 4 },
-              },
-            ]}
-          />
-          <View style={styles.info}>
-            <Text style={styles.name}>{item.conductor}</Text>
-            <Text style={styles.plate}>Placa: {item.placa}</Text>
-            <Text style={styles.competitor}>Competidor #{item.NCompetidor}</Text>
+          <View style={styles.cornerNumberCard}>
+            <Text style={styles.cornerNumberText}>{item.NCompetidor}</Text>
           </View>
-          <View style={styles.likesRow}>
-            <Ionicons name="heart" size={22} color="#d32f2f" />
-            <Text style={styles.likesCount}>{item.NumeroLikes}</Text>
+          <View style={{ position: 'relative', marginRight: 18 }}>
+            <Image
+              source={item.imageUrl && item.imageUrl.trim() !== ''
+                ? { uri: item.imageUrl }
+                : require('../../assets/icon.png')
+              }
+              style={styles.compactImage}
+            />
+          </View>
+          <View style={styles.infoCompact}>
+            <Text style={styles.nameCompact}>{item.conductor}</Text>
+            <Text style={styles.plateCompact}>{item.placa}</Text>
+            <View style={styles.likesRowCompact}>
+              <Ionicons name="heart" size={16} color="#d32f2f" />
+              <Text style={styles.likesCountCompact}>{item.NumeroLikes}</Text>
+            </View>
           </View>
         </Animated.View>
       );
     }
     return (
-      <View style={styles.card}>
-        <Text style={styles.position}>{index + 1}</Text>
-        <Image
-          source={item.imageUrl && item.imageUrl.trim() !== ''
-            ? { uri: item.imageUrl }
-            : require('../../assets/icon.png')
-          }
-          style={styles.image}
-        />
-        <View style={styles.info}>
-          <Text style={styles.name}>{item.conductor}</Text>
-          <Text style={styles.plate}>Placa: {item.placa}</Text>
-          <Text style={styles.competitor}>Competidor #{item.NCompetidor}</Text>
+      <View style={styles.cardRow}>
+        <View style={styles.cornerNumberCard}>
+          <Text style={styles.cornerNumberText}>{item.NCompetidor}</Text>
         </View>
-        <View style={styles.likesRow}>
-          <Ionicons name="heart" size={22} color="#d32f2f" />
-          <Text style={styles.likesCount}>{item.NumeroLikes}</Text>
+        <View style={{ position: 'relative', marginRight: 18 }}>
+          <Image
+            source={item.imageUrl && item.imageUrl.trim() !== ''
+              ? { uri: item.imageUrl }
+              : require('../../assets/icon.png')
+            }
+            style={styles.compactImage}
+          />
+        </View>
+        <View style={styles.infoCompact}>
+          <Text style={styles.nameCompact}>{item.conductor}</Text>
+          <Text style={styles.plateCompact}>{item.placa}</Text>
+          <View style={styles.likesRowCompact}>
+            <Ionicons name="heart" size={16} color="#d32f2f" />
+            <Text style={styles.likesCountCompact}>{item.NumeroLikes}</Text>
+          </View>
         </View>
       </View>
     );
@@ -260,6 +253,117 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     fontWeight: 'bold',
     marginLeft: 4,
+  },
+  competitorCircle: {
+    width: 40, // antes 54
+    height: 40, // antes 54
+    borderRadius: 20, // antes 27
+    backgroundColor: '#e0f2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8, // antes 14
+  },
+  competitorNumber: {
+    fontSize: 20, // antes 28
+    fontWeight: 'bold',
+    color: '#1a237e',
+  },
+  bigImage: {
+    width: 70, // antes 90
+    height: 70, // antes 90
+    borderRadius: 35, // antes 45
+    marginRight: 10, // antes 16
+    backgroundColor: '#eee',
+  },
+  animatedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    padding: 10,
+    alignSelf: 'center',
+    maxWidth: '92%',
+    width: '92%',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16, // antes 12
+    marginBottom: 18, // antes 12
+    elevation: 3, // antes 2
+    shadowColor: '#000',
+    shadowOpacity: 0.10, // antes 0.08
+    shadowRadius: 8, // antes 4
+    shadowOffset: { width: 0, height: 2 }, // antes 1
+    padding: 12, // antes 10
+    alignSelf: 'center',
+    maxWidth: '98%', // antes 92%
+    width: '98%', // antes 92%
+  },
+  compactImage: {
+    width: 110, // antes 50
+    height: 110, // antes 50
+    borderRadius: 40, // antes 25
+    marginRight: 0, // antes 10
+    marginLeft: 40, // nuevo margen izquierdo para separar la imagen del borde
+    backgroundColor: '#eee',
+  },
+  cornerNumber: {
+    position: 'absolute',
+    top: 2, // antes 0
+    left: 2, // antes 0
+    backgroundColor: '#e0f2f7',
+    borderRadius: 14, // antes 10
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    zIndex: 1,
+  },
+  cornerNumberText: {
+    fontSize: 20, // antes 16
+    fontWeight: 'bold',
+    color: '#1a237e',
+  },
+  infoCompact: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  nameCompact: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#263238',
+  },
+  plateCompact: {
+    fontSize: 13,
+    color: '#607d8b',
+    marginTop: 2,
+  },
+  likesRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  likesCountCompact: {
+    fontSize: 14,
+    color: '#d32f2f',
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  cornerNumberCard: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#e0f2f7',
+    borderRadius: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    zIndex: 1,
   },
 });
 
