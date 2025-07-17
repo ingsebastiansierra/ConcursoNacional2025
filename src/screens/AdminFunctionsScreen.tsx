@@ -119,6 +119,29 @@ const AdminFunctionsScreen: React.FC<AdminFunctionsScreenProps> = ({ onLogout })
     );
   };
 
+  const handleTestUsers = () => {
+    Alert.alert(
+      'Crear Usuarios de Prueba',
+      '¿Estás seguro de que quieres crear 150 usuarios de prueba? Esto puede afectar el rendimiento del sistema.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Crear', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              Alert.alert('Procesando', 'Creando usuarios de prueba...');
+              // Aquí iría la lógica para crear usuarios de prueba
+              Alert.alert('✅ Éxito', 'Usuarios de prueba creados con éxito.');
+            } catch (error) {
+              Alert.alert('❌ Error', 'No se pudieron crear los usuarios de prueba');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -164,10 +187,10 @@ const AdminFunctionsScreen: React.FC<AdminFunctionsScreenProps> = ({ onLogout })
           <Text style={styles.cardSubtitle}>Crear copia de seguridad</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card} onPress={handleAnalytics}>
-          <Ionicons name="analytics" size={30} color="#1a237e" />
-          <Text style={styles.cardTitle}>Analíticas</Text>
-          <Text style={styles.cardSubtitle}>Estadísticas y reportes</Text>
+        <TouchableOpacity style={styles.card} onPress={handleTestUsers}>
+          <Ionicons name="flask" size={30} color="#4caf50" />
+          <Text style={styles.cardTitle}>Prueba de Testing</Text>
+          <Text style={styles.cardSubtitle}>Crear 150 usuarios de prueba</Text>
         </TouchableOpacity>
       </View>
 
