@@ -110,6 +110,104 @@ export const subscribeToUserVotes = (userId: string, callback: (votesUsed: numbe
   });
 };
 
+// Suscripción a estadísticas en tiempo real
+export const subscribeToContestStats = (callback: (stats: any) => void) => {
+  const driversCol = collection(db, 'drivers');
+  const usersCol = collection(db, 'users');
+  
+  const unsubscribeDrivers = onSnapshot(driversCol, (driversSnapshot) => {
+    const totalDrivers = driversSnapshot.size;
+    let totalVotes = 0;
+    let topDriver = null;
+    
+    driversSnapshot.docs.forEach((driverDoc) => {
+      const data = driverDoc.data();
+      const votes = data.NumeroLikes || 0;
+      totalVotes += votes;
+      
+      if (!topDriver || votes > (topDriver.NumeroLikes || 0)) {
+        topDriver = { id: driverDoc.id, ...data };
+      }
+    });
+    
+    // Obtener total de usuarios
+    getDocs(usersCol).then((usersSnapshot) => {
+      const totalUsers = usersSnapshot.size;
+      callback({
+        totalUsers,
+        totalDrivers,
+        totalVotes,
+        topDriver
+      });
+    });
+  });
+  
+  return unsubscribeDrivers;
+};
+
+// Suscripción a usuarios en tiempo real
+export const subscribeToUsers = (callback: (users: any[]) => void) => {
+  const usersCol = collection(db, 'users');
+  return onSnapshot(usersCol, (snapshot) => {
+    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    callback(users);
+  });
+};
+
+// Suscripción a actividad reciente en tiempo real
+export const subscribeToRecentActivity = (callback: (activity: any) => void) => {
+  const usersCol = collection(db, 'users');
+  const driversCol = collection(db, 'drivers');
+  
+  const unsubscribeUsers = onSnapshot(usersCol, (usersSnapshot) => {
+    const recentUsers = usersSnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+    
+    // Obtener votos recientes
+    getRecentVotes(5).then((recentVotes) => {
+      callback({
+        recentUsers,
+        recentVotes
+      });
+    });
+  });
+  
+  return unsubscribeUsers;
+};
+
+// Suscripción a configuración del concurso en tiempo real
+export const subscribeToContestConfig = (callback: (config: any) => void) => {
+  const configRef = doc(db, 'contestConfig', 'main');
+  return onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data());
+    } else {
+      // Crear configuración por defecto
+      const defaultConfig = { isActive: true };
+      setDoc(configRef, defaultConfig);
+      callback(defaultConfig);
+    }
+  });
+};
+
+// Suscripción a datos del usuario en tiempo real
+export const subscribeToUserData = (userId: string, callback: (userData: any) => void) => {
+  const userRef = doc(db, 'users', userId);
+  return onSnapshot(userRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback(docSnap.data());
+    } else {
+      callback(null);
+    }
+  });
+};
+
 // Obtener los likes de un piloto
 export const getDriverLikes = async (driverId: string) => {
   const likesCol = collection(db, 'drivers', driverId, 'likes');

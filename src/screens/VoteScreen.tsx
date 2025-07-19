@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, Alert, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToDrivers, likeDriver, subscribeToUserVotes, getDriverLikes, getContestConfig } from '../services/firestoreService';
+import { subscribeToDrivers, likeDriver, subscribeToUserVotes, getDriverLikes, subscribeToContestConfig } from '../services/firestoreService';
 import { getAuth } from 'firebase/auth';
+import colors from '../theme/colors';
 
 interface Driver {
   id: string;
-  NCompetidor: number;
+  numeroCompetidor: number;
   NumeroLikes: number;
   conductor: string;
   imageUrl: string;
@@ -16,6 +17,7 @@ interface Driver {
 const MAX_VOTES = 10;
 
 const VoteScreen = () => {
+  const styles = createStyles(colors);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [liking, setLiking] = useState<string | null>(null);
@@ -28,29 +30,27 @@ const VoteScreen = () => {
   const userId = user?.uid || '';
 
   useEffect(() => {
+    // Suscripción en tiempo real a los pilotos
     const unsubscribeDrivers = subscribeToDrivers((data) => {
-      setDrivers(data.sort((a, b) => a.NCompetidor - b.NCompetidor));
+      setDrivers(data.sort((a, b) => a.numeroCompetidor - b.numeroCompetidor));
       setLoading(false);
     });
+
+    // Suscripción en tiempo real a los votos del usuario
     let unsubscribeVotes = () => {};
     if (userId) {
       unsubscribeVotes = subscribeToUserVotes(userId, setVotesUsed);
     }
 
-    // Verificar estado del concurso
-    const checkContestStatus = async () => {
-      try {
-        const config = await getContestConfig();
-        setContestActive(config.isActive);
-      } catch (error) {
-        console.error('Error verificando estado del concurso:', error);
-      }
-    };
-    checkContestStatus();
+    // Suscripción en tiempo real a la configuración del concurso
+    const unsubscribeConfig = subscribeToContestConfig((config) => {
+      setContestActive(config.isActive);
+    });
 
     return () => {
       unsubscribeDrivers();
       unsubscribeVotes();
+      unsubscribeConfig();
     };
   }, [userId]);
 
@@ -106,7 +106,7 @@ const VoteScreen = () => {
       <View style={styles.info}>
         <Text style={styles.name}>{item.conductor}</Text>
         <Text style={styles.plate}>Placa: {item.placa}</Text>
-        <Text style={styles.competitor}>Competidor #{item.NCompetidor}</Text>
+        <Text style={styles.competitor}>Competidor #{item.numeroCompetidor}</Text>
         <View style={styles.likesRow}>
           <TouchableOpacity
             style={[
@@ -116,7 +116,7 @@ const VoteScreen = () => {
             onPress={() => handleLike(item.id)}
             disabled={liking === item.id || votesUsed >= MAX_VOTES || !contestActive}
           >
-            <Ionicons name="heart" size={24} color="#d32f2f" />
+            <Ionicons name="heart" size={24} color={colors.icon} />
             <Text style={styles.likeText}>Like</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleShowLikes(item)}>
@@ -128,7 +128,7 @@ const VoteScreen = () => {
   );
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#1a237e" style={{ flex: 1, marginTop: 40 }} />;
+    return <ActivityIndicator size="large" color={colors.loading} style={{ flex: 1, marginTop: 40 }} />;
   }
 
   return (
@@ -137,13 +137,13 @@ const VoteScreen = () => {
       
       {!contestActive && (
         <View style={styles.contestPausedContainer}>
-          <Ionicons name="pause-circle" size={32} color="#ff9800" />
+          <Ionicons name="pause-circle" size={32} color={colors.warning} />
           <Text style={styles.contestPausedText}>El concurso está pausado</Text>
           <Text style={styles.contestPausedSubtext}>No se pueden emitir votos en este momento</Text>
         </View>
       )}
       
-      <Text style={styles.votesLeft}>Te quedan <Text style={{ color: votesUsed >= MAX_VOTES ? '#d32f2f' : '#1a237e', fontWeight: 'bold' }}>{MAX_VOTES - votesUsed}</Text> votos</Text>
+              <Text style={styles.votesLeft}>Te quedan <Text style={{ color: votesUsed >= MAX_VOTES ? colors.error : colors.primary, fontWeight: 'bold' }}>{MAX_VOTES - votesUsed}</Text> votos</Text>
       {votesUsed >= MAX_VOTES && (
         <Text style={styles.warning}>Ya no tienes más likes disponibles.</Text>
       )}
@@ -168,7 +168,7 @@ const VoteScreen = () => {
               keyExtractor={(_, idx) => idx.toString()}
               renderItem={({ item }) => (
                 <View style={styles.likeUserRow}>
-                  <Ionicons name="person-circle" size={24} color="#1a237e" style={{ marginRight: 8 }} />
+                  <Ionicons name="person-circle" size={24} color={colors.icon} style={{ marginRight: 8 }} />
                   <Text style={styles.likeUserName}>{item.userName}</Text>
                   <Text style={styles.likeUserCount}> — {item.count} like{item.count > 1 ? 's' : ''}</Text>
                 </View>
@@ -185,16 +185,16 @@ const VoteScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
     padding: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 32,
     marginBottom: 8,
     textAlign: 'center',
@@ -205,44 +205,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   warning: {
-    color: '#d32f2f',
+    color: colors.error,
     fontWeight: 'bold',
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 10,
   },
   contestPausedContainer: {
-    backgroundColor: '#fff3e0',
+    backgroundColor: '#fff5f5',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ff9800',
+    borderColor: colors.error,
   },
   contestPausedText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#e65100',
+    color: colors.error,
     marginTop: 8,
     textAlign: 'center',
   },
   contestPausedSubtext: {
     fontSize: 14,
-    color: '#f57c00',
+    color: '#c0392b',
     marginTop: 4,
     textAlign: 'center',
   },
   card: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     marginBottom: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
     padding: 12,
     alignItems: 'center',
   },
@@ -259,18 +259,19 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#263238',
+    color: '#2c3e50',
   },
   plate: {
     fontSize: 16,
-    color: '#607d8b',
+    color: '#7f8c8d',
     marginTop: 2,
   },
   competitor: {
     fontSize: 14,
-    color: '#90caf9',
+    color: colors.primary,
     marginTop: 2,
     marginBottom: 6,
+    fontWeight: '600',
   },
   likesRow: {
     flexDirection: 'row',
@@ -281,21 +282,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
-    backgroundColor: '#fff3f3',
+    backgroundColor: '#fff5f5',
     borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#d32f2f',
+    borderColor: colors.primary,
   },
   likeText: {
-    color: '#d32f2f',
+    color: colors.primary,
     marginLeft: 6,
     fontWeight: 'bold',
   },
   likesCount: {
     fontSize: 16,
-    color: '#d32f2f',
+    color: colors.primary,
     fontWeight: 'bold',
   },
   modalOverlay: {
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -326,16 +327,16 @@ const styles = StyleSheet.create({
   },
   likeUserName: {
     fontSize: 17,
-    color: '#263238',
+    color: '#2c3e50',
   },
   likeUserCount: {
     fontSize: 16,
-    color: '#607d8b',
+    color: '#7f8c8d',
     marginLeft: 6,
   },
   closeButton: {
     marginTop: 18,
-    backgroundColor: '#1a237e',
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 24,

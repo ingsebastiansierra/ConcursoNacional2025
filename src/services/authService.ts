@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   UserCredential,
-  User
+  User,
+  sendEmailVerification
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -34,6 +35,10 @@ export const register = async (email: string, password: string, name: string): P
     role: ADMIN_EMAILS.includes(email) ? 'admin' : 'user',
     createdAt: new Date().toISOString(),
   });
+  // Enviar correo de verificación
+  if (userCredential.user) {
+    await sendEmailVerification(userCredential.user);
+  }
   return userCredential;
 };
 
@@ -69,9 +74,15 @@ export const getUserRole = async (user: User): Promise<string> => {
   }
 };
 
+// Nueva función para reenviar correo de verificación
+export const sendVerificationEmail = async (user: User) => {
+  return sendEmailVerification(user);
+};
+
 export default {
   login,
   register,
   isAdmin,
   getUserRole,
+  sendVerificationEmail,
 }; 

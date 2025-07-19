@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
+import colors from '../theme/colors';
+import { subscribeToDrivers } from '../services/firestoreService';
 
 interface DriversListScreenProps {
   onLogout?: () => void;
@@ -12,7 +14,7 @@ interface DriversListScreenProps {
 interface Driver {
   id: string;
   conductor: string;
-  NCompetidor: number;
+  numeroCompetidor: number;
   NumeroLikes: number;
   placa: string;
   imageUrl?: string;
@@ -20,6 +22,7 @@ interface Driver {
 }
 
 const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
+  const styles = createStyles(colors);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [filteredDrivers, setFilteredDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +54,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
         driversData.push({
           id: driverDoc.id,
           conductor: driverData.conductor || 'Sin nombre',
-          NCompetidor: driverData.NCompetidor || 0,
+          numeroCompetidor: driverData.numeroCompetidor || 0,
           NumeroLikes: driverData.NumeroLikes || 0,
           placa: driverData.placa || 'Sin placa',
           imageUrl: driverData.imageUrl,
@@ -73,7 +76,17 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    loadDrivers();
+    // Suscripción en tiempo real a los pilotos
+    const unsubscribe = subscribeToDrivers((driversData) => {
+      // Ordenar por número de likes (más votos primero)
+      const sortedDrivers = driversData.sort((a, b) => (b.NumeroLikes || 0) - (a.NumeroLikes || 0));
+      setDrivers(sortedDrivers);
+      setFilteredDrivers(sortedDrivers);
+      setLoading(false);
+    });
+
+    // Cleanup de suscripción
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -83,7 +96,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
       const filtered = drivers.filter(driver =>
         driver.conductor.toLowerCase().includes(searchText.toLowerCase()) ||
         driver.placa.toLowerCase().includes(searchText.toLowerCase()) ||
-        driver.NCompetidor.toString().includes(searchText)
+        driver.numeroCompetidor.toString().includes(searchText)
       );
       setFilteredDrivers(filtered);
     }
@@ -165,7 +178,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
       const driverData = driverDoc.data();
       setEditDriver(driver);
       setEditName(driverData?.conductor || '');
-      setEditNumber(driverData?.NCompetidor ? String(driverData.NCompetidor) : '');
+      setEditNumber(driverData?.numeroCompetidor ? String(driverData.numeroCompetidor) : '');
       setEditPlate(driverData?.placa || '');
       setEditImageUrl(driverData?.imageUrl || '');
       setEditModalVisible(true);
@@ -193,7 +206,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
       const driverRef = doc(db, 'drivers', editDriver.id);
       await updateDoc(driverRef, {
         conductor: editName,
-        NCompetidor: Number(editNumber),
+        numeroCompetidor: Number(editNumber),
         placa: editPlate,
         imageUrl: editImageUrl,
       });
@@ -208,10 +221,10 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
 
   const getRankColor = (index: number) => {
     switch (index) {
-      case 0: return '#ffd700'; // Oro
-      case 1: return '#c0c0c0'; // Plata
-      case 2: return '#cd7f32'; // Bronce
-      default: return '#607d8b';
+      case 0: return colors.trophyGold; // Oro
+      case 1: return colors.trophySilver; // Plata
+      case 2: return colors.trophyBronze; // Bronce
+      default: return colors.textSecondary;
     }
   };
 
@@ -225,7 +238,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
           <View style={styles.driverDetails}>
             <Text style={styles.driverName}>{item.conductor}</Text>
             <Text style={styles.driverPlate}>Placa: {item.placa}</Text>
-            <Text style={styles.driverCompetitor}>Competidor #{item.NCompetidor}</Text>
+            <Text style={styles.driverCompetitor}>Competidor #{item.numeroCompetidor}</Text>
             <Text style={styles.driverVotes}>{item.NumeroLikes || 0} votos</Text>
           </View>
         </View>
@@ -243,19 +256,19 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
           style={[styles.actionButton, styles.editButton]} 
           onPress={() => handleEditDriver(item)}
         >
-          <Ionicons name="create" size={16} color="#fff" />
+          <Ionicons name="create" size={16} color={colors.background} />
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.actionButton, styles.resetButton]} 
           onPress={() => handleResetDriverVotes(item)}
         >
-          <Ionicons name="refresh" size={16} color="#fff" />
+          <Ionicons name="refresh" size={16} color={colors.background} />
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.actionButton, styles.deleteButton]} 
           onPress={() => handleDeleteDriver(item)}
         >
-          <Ionicons name="trash" size={16} color="#fff" />
+          <Ionicons name="trash" size={16} color={colors.background} />
         </TouchableOpacity>
       </View>
     </View>
@@ -264,7 +277,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Ionicons name="refresh" size={40} color="#1a237e" />
+        <Ionicons name="refresh" size={40} color={colors.loading} />
         <Text style={styles.loadingText}>Cargando pilotos...</Text>
       </View>
     );
@@ -274,14 +287,14 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="car-sport" size={40} color="#1a237e" />
+        <Ionicons name="car-sport" size={40} color={colors.icon} />
         <Text style={styles.title}>Gestión de Pilotos</Text>
         <Text style={styles.subtitle}>{filteredDrivers.length} pilotos encontrados</Text>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#607d8b" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar por nombre, placa o número..."
@@ -301,7 +314,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
 
       {/* Refresh Button */}
       <TouchableOpacity style={styles.refreshButton} onPress={loadDrivers}>
-        <Ionicons name="refresh" size={20} color="#fff" />
+        <Ionicons name="refresh" size={20} color={colors.background} />
         <Text style={styles.refreshText}>Actualizar</Text>
       </TouchableOpacity>
 
@@ -312,42 +325,67 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
         transparent={true}
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Editar Piloto</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Editar Piloto</Text>
             {/* Imagen actual */}
             {editImageUrl ? (
-              <Image source={{ uri: editImageUrl }} style={{ width: 90, height: 90, borderRadius: 45, alignSelf: 'center', marginBottom: 12 }} />
+              <Image source={{ uri: editImageUrl }} style={styles.modalImage} />
             ) : (
-              <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: '#eee', alignSelf: 'center', marginBottom: 12, justifyContent: 'center', alignItems: 'center' }}>
-                <Ionicons name="image" size={36} color="#bbb" />
+              <View style={styles.modalImagePlaceholder}>
+                <Ionicons name="image" size={36} color={colors.subtitle} />
               </View>
             )}
-            <TouchableOpacity onPress={handlePickImage} style={{ alignSelf: 'center', marginBottom: 16 }}>
-              <Text style={{ color: '#1a237e', textDecorationLine: 'underline', fontWeight: 'bold' }}>Cambiar imagen</Text>
+            <TouchableOpacity onPress={handlePickImage} style={styles.modalImageButton}>
+              <Text style={styles.modalImageButtonText}>Cambiar imagen</Text>
             </TouchableOpacity>
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              style={styles.modalInput}
               placeholder="Nombre"
+              placeholderTextColor={colors.placeholder}
               value={editName}
               onChangeText={setEditName}
             />
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              style={styles.modalInput}
               placeholder="Número de Competidor"
+              placeholderTextColor={colors.placeholder}
               value={editNumber}
               onChangeText={setEditNumber}
               keyboardType="numeric"
             />
             <TextInput
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+              style={styles.modalInput}
               placeholder="Placa"
+              placeholderTextColor={colors.placeholder}
               value={editPlate}
               onChangeText={setEditPlate}
             />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-              <Button title="Cancelar" color="#888" onPress={() => setEditModalVisible(false)} />
-              <Button title="Guardar" color="#1a237e" onPress={handleSaveEdit} />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Link de la foto (imageUrl)"
+              placeholderTextColor={colors.placeholder}
+              value={editImageUrl}
+              onChangeText={text => {
+                // Si es un link de Google Drive, convertirlo automáticamente
+                const match = text.match(/drive\.google\.com\/file\/d\/([\w-]+)\//);
+                if (match) {
+                  const id = match[1];
+                  setEditImageUrl(`https://drive.google.com/uc?export=view&id=${id}`);
+                } else {
+                  setEditImageUrl(text);
+                }
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveEdit}>
+                <Text style={styles.modalSaveButtonText}>Guardar</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -356,20 +394,20 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingText: {
     fontSize: 16,
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
   },
   header: {
@@ -381,29 +419,29 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
     paddingHorizontal: 15,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   searchIcon: {
     marginRight: 10,
@@ -412,24 +450,24 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#263238',
+    color: colors.text,
   },
   list: {
     flex: 1,
     paddingHorizontal: 20,
   },
   driverCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   driverInfo: {
     flex: 1,
@@ -448,7 +486,7 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   rankText: {
-    color: '#fff',
+    color: colors.background,
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -458,22 +496,22 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
   },
   driverPlate: {
     fontSize: 14,
-    color: '#607d8b',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   driverCompetitor: {
     fontSize: 12,
-    color: '#1a237e',
+    color: colors.title,
     fontWeight: 'bold',
     marginTop: 2,
   },
   driverVotes: {
     fontSize: 14,
-    color: '#607d8b',
+    color: colors.textSecondary,
     marginTop: 2,
     fontWeight: 'bold',
   },
@@ -482,7 +520,7 @@ const styles = StyleSheet.create({
   },
   driverStat: {
     fontSize: 12,
-    color: '#607d8b',
+    color: colors.textSecondary,
   },
   driverActions: {
     flexDirection: 'row',
@@ -497,16 +535,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   editButton: {
-    backgroundColor: '#4caf50', // Verde para editar
+    backgroundColor: colors.primary, // Rojo del tema para editar
   },
   resetButton: {
-    backgroundColor: '#ff9800',
+    backgroundColor: colors.warning,
   },
   deleteButton: {
-    backgroundColor: '#f44336',
+    backgroundColor: colors.error,
   },
   refreshButton: {
-    backgroundColor: '#1a237e',
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 8,
     padding: 15,
     flexDirection: 'row',
@@ -515,10 +553,104 @@ const styles = StyleSheet.create({
     margin: 20,
   },
   refreshText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  // Estilos del modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    width: 320,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: colors.title,
+    textAlign: 'center',
+  },
+  modalImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  modalImagePlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImageButton: {
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalImageButtonText: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
+    fontWeight: 'bold',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    marginBottom: 12,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  modalCancelButtonText: {
+    color: colors.subtitle,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  modalSaveButtonText: {
+    color: colors.background,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

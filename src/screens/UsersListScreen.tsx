@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, TextInput } 
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import colors from '../theme/colors';
+import { subscribeToUsers } from '../services/firestoreService';
 
 interface UsersListScreenProps {
   onLogout?: () => void;
@@ -18,6 +20,7 @@ interface User {
 }
 
 const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
+  const styles = createStyles(colors);
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +73,29 @@ const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    loadUsers();
+    // Suscripción en tiempo real a los usuarios
+    const unsubscribe = subscribeToUsers((usersData) => {
+      const processedUsers: User[] = usersData.map(user => ({
+        id: user.id,
+        name: user.name || 'Sin nombre',
+        email: user.email || '',
+        role: user.role || 'user',
+        createdAt: user.createdAt || new Date().toISOString(),
+        votesUsed: user.votesUsed || 0
+      }));
+      
+      // Ordenar por fecha de creación (más recientes primero)
+      const sortedUsers = processedUsers.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      setUsers(sortedUsers);
+      setFilteredUsers(sortedUsers);
+      setLoading(false);
+    });
+
+    // Cleanup de suscripción
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -174,7 +199,7 @@ const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
           <Ionicons 
             name={item.role === 'admin' ? 'shield-checkmark' : 'person-circle'} 
             size={24} 
-            color={item.role === 'admin' ? '#1a237e' : '#607d8b'} 
+            color={item.role === 'admin' ? colors.icon : colors.textSecondary} 
           />
           <View style={styles.userDetails}>
             <Text style={styles.userName}>{item.name}</Text>
@@ -211,7 +236,7 @@ const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Ionicons name="refresh" size={40} color="#1a237e" />
+        <Ionicons name="refresh" size={40} color={colors.loading} />
         <Text style={styles.loadingText}>Cargando usuarios...</Text>
       </View>
     );
@@ -221,14 +246,14 @@ const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="people" size={40} color="#1a237e" />
+        <Ionicons name="people" size={40} color={colors.icon} />
         <Text style={styles.title}>Gestión de Usuarios</Text>
         <Text style={styles.subtitle}>{filteredUsers.length} usuarios encontrados</Text>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#607d8b" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar usuarios..."
@@ -248,27 +273,27 @@ const UsersListScreen: React.FC<UsersListScreenProps> = ({ onLogout }) => {
 
       {/* Refresh Button */}
       <TouchableOpacity style={styles.refreshButton} onPress={loadUsers}>
-        <Ionicons name="refresh" size={20} color="#fff" />
+        <Ionicons name="refresh" size={20} color={colors.background} />
         <Text style={styles.refreshText}>Actualizar</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingText: {
     fontSize: 16,
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
   },
   header: {
@@ -280,29 +305,29 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
     paddingHorizontal: 15,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   searchIcon: {
     marginRight: 10,
@@ -311,24 +336,24 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#263238',
+    color: colors.text,
   },
   list: {
     flex: 1,
     paddingHorizontal: 20,
   },
   userCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   userInfo: {
     flex: 1,
@@ -345,16 +370,16 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
   },
   userEmail: {
     fontSize: 14,
-    color: '#607d8b',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   userDate: {
     fontSize: 12,
-    color: '#9e9e9e',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   userStats: {
@@ -362,11 +387,11 @@ const styles = StyleSheet.create({
   },
   userStat: {
     fontSize: 12,
-    color: '#607d8b',
+    color: colors.textSecondary,
   },
   userRole: {
     fontSize: 12,
-    color: '#1a237e',
+    color: colors.title,
     fontWeight: 'bold',
     marginTop: 2,
   },
@@ -389,7 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
   },
   refreshButton: {
-    backgroundColor: '#1a237e',
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 8,
     padding: 15,
     flexDirection: 'row',

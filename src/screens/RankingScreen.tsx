@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, memo } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToDrivers, getContestConfig } from '../services/firestoreService';
+import { subscribeToDrivers, subscribeToContestConfig, getContestConfig } from '../services/firestoreService';
+import colors from '../theme/colors';
 
 interface Driver {
   id: string;
-  NCompetidor: number;
+  numeroCompetidor: number;
   NumeroLikes: number;
   conductor: string;
   imageUrl: string;
@@ -19,6 +20,7 @@ const COLORS = [
 ];
 
 const RankingScreen = () => {
+  const styles = createStyles(colors);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [contestActive, setContestActive] = useState(true);
@@ -30,21 +32,16 @@ const RankingScreen = () => {
   ]).current;
 
   useEffect(() => {
-    const unsubscribe = subscribeToDrivers((data) => {
+    // Suscripción en tiempo real a los pilotos
+    const unsubscribeDrivers = subscribeToDrivers((data) => {
       setDrivers(data.sort((a, b) => b.NumeroLikes - a.NumeroLikes));
       setLoading(false);
     });
 
-    // Verificar estado del concurso
-    const checkContestStatus = async () => {
-      try {
-        const config = await getContestConfig();
-        setContestActive(config.isActive);
-      } catch (error) {
-        console.error('Error verificando estado del concurso:', error);
-      }
-    };
-    checkContestStatus();
+    // Suscripción en tiempo real a la configuración del concurso
+    const unsubscribeConfig = subscribeToContestConfig((config) => {
+      setContestActive(config.isActive);
+    });
 
     // Animación de pálpito para los 3 primeros
     pulseAnim.forEach((anim, idx) => {
@@ -64,7 +61,11 @@ const RankingScreen = () => {
       ).start();
     });
 
-    return () => unsubscribe();
+    // Cleanup de suscripciones
+    return () => {
+      unsubscribeDrivers();
+      unsubscribeConfig();
+    };
   }, []);
 
   const MemoDriverCard = memo(({ item, index, pulseAnim }: { item: Driver; index: number; pulseAnim: Animated.Value[] }) => {
@@ -87,7 +88,7 @@ const RankingScreen = () => {
           ]}
         >
           <View style={styles.cornerNumberCard}>
-            <Text style={styles.cornerNumberText}>{item.NCompetidor}</Text>
+            <Text style={styles.cornerNumberText}>{item.numeroCompetidor}</Text>
           </View>
           <View style={{ position: 'relative', marginRight: 18 }}>
             <Image
@@ -102,7 +103,7 @@ const RankingScreen = () => {
             <Text style={styles.nameCompact}>{item.conductor}</Text>
             <Text style={styles.plateCompact}>{item.placa}</Text>
             <View style={styles.likesRowCompact}>
-              <Ionicons name="heart" size={16} color="#d32f2f" />
+              <Ionicons name="heart" size={16} color={colors.icon} />
               <Text style={styles.likesCountCompact}>{item.NumeroLikes}</Text>
             </View>
           </View>
@@ -112,7 +113,7 @@ const RankingScreen = () => {
     return (
       <View style={styles.cardRow}>
         <View style={styles.cornerNumberCard}>
-          <Text style={styles.cornerNumberText}>{item.NCompetidor}</Text>
+          <Text style={styles.cornerNumberText}>{item.numeroCompetidor}</Text>
         </View>
         <View style={{ position: 'relative', marginRight: 18 }}>
           <Image
@@ -127,7 +128,7 @@ const RankingScreen = () => {
           <Text style={styles.nameCompact}>{item.conductor}</Text>
           <Text style={styles.plateCompact}>{item.placa}</Text>
           <View style={styles.likesRowCompact}>
-            <Ionicons name="heart" size={16} color="#d32f2f" />
+            <Ionicons name="heart" size={16} color={colors.icon} />
             <Text style={styles.likesCountCompact}>{item.NumeroLikes}</Text>
           </View>
         </View>
@@ -136,7 +137,7 @@ const RankingScreen = () => {
   });
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#1a237e" style={{ flex: 1, marginTop: 40 }} />;
+    return <ActivityIndicator size="large" color={colors.loading} style={{ flex: 1, marginTop: 40 }} />;
   }
 
   return (
@@ -145,7 +146,7 @@ const RankingScreen = () => {
       
       {!contestActive && (
         <View style={styles.contestPausedContainer}>
-          <Ionicons name="pause-circle" size={24} color="#ff9800" />
+          <Ionicons name="pause-circle" size={24} color={colors.icon} />
           <Text style={styles.contestPausedText}>Concurso Pausado</Text>
         </View>
       )}
@@ -163,35 +164,35 @@ const RankingScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
     padding: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 32,
     marginBottom: 16,
     textAlign: 'center',
   },
   contestPausedContainer: {
-    backgroundColor: '#fff3e0',
+    backgroundColor: '#fff5f5',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ff9800',
+    borderColor: colors.error,
     flexDirection: 'row',
     justifyContent: 'center',
   },
   contestPausedText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#e65100',
+    color: colors.error,
     marginLeft: 8,
   },
   card: {
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
   position: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.primary,
     width: 32,
     textAlign: 'center',
   },
@@ -231,16 +232,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#263238',
+    color: '#2c3e50',
   },
   plate: {
     fontSize: 15,
-    color: '#607d8b',
+    color: '#7f8c8d',
     marginTop: 2,
   },
   competitor: {
     fontSize: 13,
-    color: '#90caf9',
+    color: colors.primary,
     marginTop: 2,
   },
   likesRow: {
@@ -250,7 +251,7 @@ const styles = StyleSheet.create({
   },
   likesCount: {
     fontSize: 18,
-    color: '#d32f2f',
+    color: colors.primary,
     fontWeight: 'bold',
     marginLeft: 4,
   },
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
     width: 40, // antes 54
     height: 40, // antes 54
     borderRadius: 20, // antes 27
-    backgroundColor: '#e0f2f7',
+    backgroundColor: '#fff5f5',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8, // antes 14
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
   competitorNumber: {
     fontSize: 20, // antes 28
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.primary,
   },
   bigImage: {
     width: 70, // antes 90
@@ -294,14 +295,14 @@ const styles = StyleSheet.create({
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16, // antes 12
     marginBottom: 18, // antes 12
-    elevation: 3, // antes 2
-    shadowColor: '#000',
-    shadowOpacity: 0.10, // antes 0.08
-    shadowRadius: 8, // antes 4
-    shadowOffset: { width: 0, height: 2 }, // antes 1
+    elevation: 4, // antes 3
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15, // antes 0.10
+    shadowRadius: 10, // antes 8
+    shadowOffset: { width: 0, height: 3 }, // antes 2
     padding: 12, // antes 10
     alignSelf: 'center',
     maxWidth: '98%', // antes 92%
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2, // antes 0
     left: 2, // antes 0
-    backgroundColor: '#e0f2f7',
+    backgroundColor: '#fff5f5',
     borderRadius: 14, // antes 10
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   cornerNumberText: {
     fontSize: 20, // antes 16
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.primary,
   },
   infoCompact: {
     flex: 1,
@@ -337,11 +338,11 @@ const styles = StyleSheet.create({
   nameCompact: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#263238',
+    color: '#2c3e50',
   },
   plateCompact: {
     fontSize: 13,
-    color: '#607d8b',
+    color: '#7f8c8d',
     marginTop: 2,
   },
   likesRowCompact: {
@@ -351,7 +352,7 @@ const styles = StyleSheet.create({
   },
   likesCountCompact: {
     fontSize: 14,
-    color: '#d32f2f',
+    color: colors.primary,
     fontWeight: 'bold',
     marginLeft: 4,
   },
@@ -359,7 +360,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#e0f2f7',
+    backgroundColor: '#fff5f5',
     borderRadius: 14,
     paddingVertical: 4,
     paddingHorizontal: 8,

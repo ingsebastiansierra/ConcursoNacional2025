@@ -7,6 +7,7 @@ import AdminFunctionsScreen from '../screens/AdminFunctionsScreen';
 import UsersListScreen from '../screens/UsersListScreen';
 import DriversListScreen from '../screens/DriversListScreen';
 import { Ionicons } from '@expo/vector-icons';
+import colors from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
 
@@ -15,24 +16,22 @@ interface AdminTabsProps {
 }
 
 const AdminTabs: React.FC<AdminTabsProps> = ({ onLogout }) => {
-  const [currentScreen, setCurrentScreen] = useState('AdminPanel');
-
-  const handleNavigateToUsers = () => {
-    setCurrentScreen('Users');
-  };
-
-  const handleNavigateToDrivers = () => {
-    setCurrentScreen('Drivers');
-  };
-
   return (
     <Tab.Navigator
       initialRouteName="AdminPanel"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#1a237e',
-        tabBarInactiveTintColor: '#757575',
-        tabBarStyle: { backgroundColor: '#fff', borderTopWidth: 0, elevation: 8 },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: '#95a5a6',
+        tabBarStyle: { 
+          backgroundColor: '#fff', 
+          borderTopWidth: 0, 
+          elevation: 8,
+          shadowColor: colors.primary,
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: -2 },
+        },
         tabBarIcon: ({ color, size }) => {
           let iconName = '';
           if (route.name === 'AdminPanel') iconName = 'shield-checkmark';
@@ -50,8 +49,6 @@ const AdminTabs: React.FC<AdminTabsProps> = ({ onLogout }) => {
         children={() => (
           <AdminScreen 
             onLogout={onLogout}
-            onNavigateToUsers={handleNavigateToUsers}
-            onNavigateToDrivers={handleNavigateToDrivers}
           />
         )}
       />

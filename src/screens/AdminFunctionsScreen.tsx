@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
 import { resetAllDriverVotes, resetAllUserLikes } from '../services/firestoreService';
+import colors from '../theme/colors';
 
 interface AdminFunctionsScreenProps {
   onLogout?: () => void;
 }
 
 const AdminFunctionsScreen: React.FC<AdminFunctionsScreenProps> = ({ onLogout }) => {
+  const styles = createStyles(colors);
   const auth = getAuth();
 
   const handleLogout = async () => {
@@ -145,67 +147,67 @@ const AdminFunctionsScreen: React.FC<AdminFunctionsScreenProps> = ({ onLogout })
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="settings" size={40} color="#1a237e" />
+        <Ionicons name="settings" size={40} color={colors.primary} />
         <Text style={styles.title}>Funcionalidades Avanzadas</Text>
         <Text style={styles.subtitle}>Panel de Control del Administrador</Text>
       </View>
 
       <View style={styles.content}>
         <TouchableOpacity style={styles.card} onPress={handleResetDriverVotes}>
-          <Ionicons name="refresh-circle" size={30} color="#d32f2f" />
+          <Ionicons name="refresh-circle" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Reiniciar Votos de Pilotos</Text>
           <Text style={styles.cardSubtitle}>Eliminar todos los likes de los pilotos</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleResetUserLikes}>
-          <Ionicons name="refresh" size={30} color="#ff9800" />
+          <Ionicons name="refresh" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Reiniciar Likes de Usuarios</Text>
           <Text style={styles.cardSubtitle}>Devolver 10 likes a todos los usuarios</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleExportData}>
-          <Ionicons name="download" size={30} color="#1a237e" />
+          <Ionicons name="download" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Exportar Datos</Text>
           <Text style={styles.cardSubtitle}>Exportar resultados en CSV/Excel</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleManageUsers}>
-          <Ionicons name="people-circle" size={30} color="#1a237e" />
+          <Ionicons name="people-circle" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Gestionar Usuarios</Text>
           <Text style={styles.cardSubtitle}>Ver, editar o eliminar usuarios</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleSystemSettings}>
-          <Ionicons name="construct" size={30} color="#1a237e" />
+          <Ionicons name="construct" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Configuración</Text>
           <Text style={styles.cardSubtitle}>Ajustes avanzados del sistema</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleBackupData}>
-          <Ionicons name="cloud-upload" size={30} color="#1a237e" />
+          <Ionicons name="cloud-upload" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Respaldo</Text>
           <Text style={styles.cardSubtitle}>Crear copia de seguridad</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.card} onPress={handleTestUsers}>
-          <Ionicons name="flask" size={30} color="#4caf50" />
+          <Ionicons name="flask" size={30} color={colors.primary} />
           <Text style={styles.cardTitle}>Prueba de Testing</Text>
           <Text style={styles.cardSubtitle}>Crear 150 usuarios de prueba</Text>
         </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={20} color="#fff" />
+        <Ionicons name="log-out-outline" size={20} color={colors.background} />
         <Text style={styles.logoutText}>Cerrar Sesión</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   header: {
     alignItems: 'center',
@@ -216,13 +218,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
@@ -230,32 +232,32 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   cardSubtitle: {
     fontSize: 14,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
   logoutButton: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: colors.error,
     borderRadius: 8,
     padding: 15,
     flexDirection: 'row',
@@ -264,7 +266,7 @@ const styles = StyleSheet.create({
     margin: 20,
   },
   logoutText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,

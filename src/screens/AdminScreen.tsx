@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, RefreshControl, Modal, TextInput, Pressable, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+import colors from '../theme/colors';
 import {
   getContestStats,
   getTopDrivers,
@@ -9,13 +12,14 @@ import {
   getRecentVotes,
   getContestConfig,
   updateContestConfig,
-  addNewDriver
+  addNewDriver,
+  subscribeToContestStats,
+  subscribeToRecentActivity,
+  subscribeToContestConfig
 } from '../services/firestoreService';
 
 interface AdminScreenProps {
   onLogout?: () => void;
-  onNavigateToUsers?: () => void;
-  onNavigateToDrivers?: () => void;
 }
 
 interface ContestStats {
@@ -31,8 +35,10 @@ const COLORS = [
   { border: '#fb8c00', shadow: 'rgba(251,140,0,0.25)' },    // 3° naranja
 ];
 
-const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, onNavigateToDrivers }) => {
+const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout }) => {
   const auth = getAuth();
+  const navigation = useNavigation();
+  const styles = createStyles(colors);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<ContestStats>({
@@ -48,6 +54,9 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
   
   // Estados para el modal de agregar piloto
   const [addDriverModalVisible, setAddDriverModalVisible] = useState(false);
+  const [votesModalVisible, setVotesModalVisible] = useState(false);
+  const [allVotes, setAllVotes] = useState<any[]>([]);
+  const [loadingVotes, setLoadingVotes] = useState(false);
   const [newDriver, setNewDriver] = useState({
     conductor: '',
     NCompetidor: '',
@@ -93,7 +102,26 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
   };
 
   useEffect(() => {
-    loadDashboardData();
+    // Suscripciones en tiempo real
+    const unsubscribeStats = subscribeToContestStats((statsData) => {
+      setStats(statsData);
+      setLoading(false);
+    });
+
+    const unsubscribeActivity = subscribeToRecentActivity((activityData) => {
+      setRecentUsers(activityData.recentUsers);
+      setRecentVotes(activityData.recentVotes);
+    });
+
+    const unsubscribeConfig = subscribeToContestConfig((configData) => {
+      setContestConfig(configData);
+    });
+
+    // Cargar top drivers inicialmente
+    getTopDrivers(3).then((topDriversData) => {
+      setTopDrivers(topDriversData);
+    });
+
     // Animación de pálpito para los 3 primeros
     pulseAnim.forEach((anim, idx) => {
       Animated.loop(
@@ -111,6 +139,13 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
         ])
       ).start();
     });
+
+    // Cleanup de suscripciones
+    return () => {
+      unsubscribeStats();
+      unsubscribeActivity();
+      unsubscribeConfig();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -154,14 +189,58 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
   };
 
   const handleNavigateToUsers = () => {
-    if (onNavigateToUsers) {
-      onNavigateToUsers();
-    }
+    navigation.navigate('Users' as never);
   };
 
   const handleNavigateToDrivers = () => {
-    if (onNavigateToDrivers) {
-      onNavigateToDrivers();
+    navigation.navigate('Drivers' as never);
+  };
+
+  const handleShowAllVotes = async () => {
+    setLoadingVotes(true);
+    setVotesModalVisible(true);
+    try {
+      const db = getFirestore();
+      const votes: any[] = [];
+      
+      // Obtener todos los pilotos
+      const driversCol = collection(db, 'drivers');
+      const driversSnapshot = await getDocs(driversCol);
+      
+      for (const driverDoc of driversSnapshot.docs) {
+        const driverData = driverDoc.data();
+        
+        // Obtener likes de cada piloto
+        const likesCol = collection(db, 'drivers', driverDoc.id, 'likes');
+        const likesSnapshot = await getDocs(likesCol);
+        
+        likesSnapshot.docs.forEach(likeDoc => {
+          const likeData = likeDoc.data();
+          votes.push({
+            id: likeDoc.id,
+            driverName: driverData.conductor || 'Piloto',
+            driverId: driverDoc.id,
+            userName: likeData.userName || 'Usuario',
+            userId: likeData.userId,
+            likedAt: likeData.likedAt,
+            timestamp: likeData.timestamp
+          });
+        });
+      }
+      
+      // Ordenar por fecha más reciente
+      votes.sort((a, b) => {
+        const dateA = a.likedAt ? new Date(a.likedAt).getTime() : 0;
+        const dateB = b.likedAt ? new Date(b.likedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      setAllVotes(votes);
+    } catch (error) {
+      console.error('Error cargando votos:', error);
+      Alert.alert('Error', 'No se pudieron cargar los votos');
+    } finally {
+      setLoadingVotes(false);
     }
   };
 
@@ -235,7 +314,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Ionicons name="refresh" size={40} color="#1a237e" />
+        <Ionicons name="refresh" size={40} color={colors.loading} />
         <Text style={styles.loadingText}>Cargando dashboard...</Text>
       </View>
     );
@@ -250,7 +329,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
     >
       {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="shield-checkmark" size={40} color="#1a237e" />
+        <Ionicons name="shield-checkmark" size={40} color={colors.icon} />
         <Text style={styles.title}>Panel de Administrador</Text>
         <Text style={styles.subtitle}>Dashboard del Concurso</Text>
       </View>
@@ -258,13 +337,13 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
       {/* Estado del Concurso */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="trophy" size={24} color="#1a237e" />
+          <Ionicons name="trophy" size={24} color={colors.icon} />
           <Text style={styles.sectionTitle}>Estado del Concurso</Text>
         </View>
         <View style={styles.contestStatusCard}>
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>Estado:</Text>
-            <View style={[styles.statusBadge, { backgroundColor: contestConfig?.isActive ? '#4caf50' : '#f44336' }]}>
+            <View style={[styles.statusBadge, { backgroundColor: contestConfig?.isActive ? colors.success : colors.error }]}>
               <Text style={styles.statusText}>
                 {contestConfig?.isActive ? 'ACTIVO' : 'PAUSADO'}
               </Text>
@@ -274,7 +353,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
             <Ionicons 
               name={contestConfig?.isActive ? 'pause' : 'play'} 
               size={20} 
-              color="#fff" 
+              color={colors.background} 
             />
             <Text style={styles.toggleButtonText}>
               {contestConfig?.isActive ? 'Pausar' : 'Activar'} Concurso
@@ -286,17 +365,17 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
       {/* Gestión de Pilotos */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="car-sport" size={24} color="#1a237e" />
+          <Ionicons name="car-sport" size={24} color={colors.icon} />
           <Text style={styles.sectionTitle}>Gestión de Pilotos</Text>
         </View>
         <View style={styles.managementGrid}>
           <TouchableOpacity style={styles.managementCard} onPress={handleNavigateToDrivers}>
-            <Ionicons name="list" size={30} color="#1a237e" />
+            <Ionicons name="list" size={30} color={colors.icon} />
             <Text style={styles.managementTitle}>Ver Pilotos</Text>
             <Text style={styles.managementSubtitle}>Gestionar pilotos existentes</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.managementCard} onPress={() => setAddDriverModalVisible(true)}>
-            <Ionicons name="add-circle" size={30} color="#4caf50" />
+            <Ionicons name="add-circle" size={30} color={colors.icon} />
             <Text style={styles.managementTitle}>Agregar Piloto</Text>
             <Text style={styles.managementSubtitle}>Nuevo participante</Text>
           </TouchableOpacity>
@@ -306,40 +385,44 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
       {/* Estadísticas Principales */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="stats-chart" size={24} color="#1a237e" />
+          <Ionicons name="stats-chart" size={24} color={colors.icon} />
           <Text style={styles.sectionTitle}>Estadísticas Principales</Text>
         </View>
         <View style={styles.statsGrid}>
           <TouchableOpacity style={styles.statCard} onPress={handleNavigateToUsers}>
-            <Ionicons name="people" size={30} color="#1a237e" />
+            <Ionicons name="people" size={30} color={colors.primary} />
             <Text style={styles.statNumber}>{stats.totalUsers}</Text>
             <Text style={styles.statLabel}>Usuarios</Text>
             <View style={styles.statClickable}>
-              <Ionicons name="chevron-forward" size={16} color="#1a237e" />
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               <Text style={styles.statClickableText}>Ver todos</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statCard} onPress={handleNavigateToDrivers}>
-            <Ionicons name="car-sport" size={30} color="#1a237e" />
+            <Ionicons name="car-sport" size={30} color={colors.primary} />
             <Text style={styles.statNumber}>{stats.totalDrivers}</Text>
             <Text style={styles.statLabel}>Pilotos</Text>
             <View style={styles.statClickable}>
-              <Ionicons name="chevron-forward" size={16} color="#1a237e" />
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
               <Text style={styles.statClickableText}>Ver todos</Text>
             </View>
           </TouchableOpacity>
-          <View style={styles.statCard}>
-            <Ionicons name="heart" size={30} color="#1a237e" />
+          <TouchableOpacity style={styles.statCard} onPress={handleShowAllVotes}>
+            <Ionicons name="heart" size={30} color={colors.primary} />
             <Text style={styles.statNumber}>{stats.totalVotes}</Text>
             <Text style={styles.statLabel}>Votos</Text>
-          </View>
+            <View style={styles.statClickable}>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+              <Text style={styles.statClickableText}>Ver todos</Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
 
       {/* Top 3 Pilotos */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="trophy" size={24} color="#1a237e" />
+          <Ionicons name="trophy" size={24} color={colors.icon} />
           <Text style={styles.sectionTitle}>Top 3 Pilotos</Text>
         </View>
         {topDrivers.length > 0 ? (
@@ -371,7 +454,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
                   <Text style={styles.driverName}>{driver.conductor || 'Piloto'}</Text>
                   <Text style={styles.driverVotes}>{driver.NumeroLikes || 0} votos</Text>
                 </View>
-                <Ionicons name="trophy" size={24} color={index === 0 ? '#ffd700' : index === 1 ? '#1976d2' : '#fb8c00'} />
+                <Ionicons name="trophy" size={24} color={index === 0 ? colors.trophyGold : index === 1 ? colors.trophySilver : colors.trophyBronze} />
               </Animated.View>
             ) : (
               <View key={driver.id} style={styles.topDriverCard}>
@@ -382,13 +465,13 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
                   <Text style={styles.driverName}>{driver.conductor || 'Piloto'}</Text>
                   <Text style={styles.driverVotes}>{driver.NumeroLikes || 0} votos</Text>
                 </View>
-                <Ionicons name="trophy" size={24} color="#c0c0c0" />
+                <Ionicons name="trophy" size={24} color={colors.subtitle} />
               </View>
             )
           ))
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="trophy-outline" size={40} color="#ccc" />
+            <Ionicons name="trophy-outline" size={40} color={colors.subtitle} />
             <Text style={styles.emptyText}>No hay votos aún</Text>
           </View>
         )}
@@ -397,7 +480,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
       {/* Actividad Reciente */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="time" size={24} color="#1a237e" />
+          <Ionicons name="time" size={24} color={colors.icon} />
           <Text style={styles.sectionTitle}>Actividad Reciente</Text>
         </View>
         
@@ -407,7 +490,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
           {recentUsers.length > 0 ? (
             recentUsers.map((user, index) => (
               <View key={user.id} style={styles.activityItem}>
-                <Ionicons name="person-circle" size={20} color="#1a237e" />
+                <Ionicons name="person-circle" size={20} color={colors.primary} />
                 <View style={styles.activityInfo}>
                   <Text style={styles.activityText}>{user.name || user.email}</Text>
                   <Text style={styles.activityTime}>{formatTimeAgo(user.createdAt)}</Text>
@@ -425,7 +508,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
           {recentVotes.length > 0 ? (
             recentVotes.map((vote, index) => (
               <View key={vote.id} style={styles.activityItem}>
-                <Ionicons name="heart" size={20} color="#e91e63" />
+                <Ionicons name="heart" size={20} color={colors.primary} />
                 <View style={styles.activityInfo}>
                   <Text style={styles.activityText}>
                     {vote.userName} votó por {vote.driverName}
@@ -442,9 +525,56 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
 
       {/* Botón de Cerrar Sesión */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Ionicons name="log-out-outline" size={20} color="#fff" />
+        <Ionicons name="log-out-outline" size={20} color={colors.background} />
         <Text style={styles.logoutText}>Cerrar Sesión</Text>
       </TouchableOpacity>
+
+      {/* Modal para Ver Todos los Votos */}
+      <Modal
+        visible={votesModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setVotesModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Todos los Votos</Text>
+            
+            {loadingVotes ? (
+              <View style={styles.modalLoading}>
+                <Ionicons name="refresh" size={24} color={colors.primary} />
+                <Text style={styles.modalLoadingText}>Cargando votos...</Text>
+              </View>
+            ) : allVotes.length > 0 ? (
+              <ScrollView style={styles.votesList}>
+                {allVotes.map((vote, index) => (
+                  <View key={vote.id || index} style={styles.voteItem}>
+                    <View style={styles.voteHeader}>
+                      <Ionicons name="heart" size={16} color={colors.primary} />
+                      <Text style={styles.voteUserName}>{vote.userName}</Text>
+                    </View>
+                    <Text style={styles.voteAction}>votó por</Text>
+                    <Text style={styles.voteDriverName}>{vote.driverName}</Text>
+                    <Text style={styles.voteTime}>{formatTimeAgo(vote.likedAt)}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.modalEmpty}>
+                <Ionicons name="heart-outline" size={40} color={colors.subtitle} />
+                <Text style={styles.modalEmptyText}>No hay votos registrados</Text>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={styles.modalCloseButton} 
+              onPress={() => setVotesModalVisible(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal para Agregar Piloto */}
       <Modal
@@ -524,20 +654,20 @@ const AdminScreen: React.FC<AdminScreenProps> = ({ onLogout, onNavigateToUsers, 
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f2f6fc',
+    backgroundColor: colors.surface,
   },
   loadingText: {
     fontSize: 16,
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
   },
   header: {
@@ -549,13 +679,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
@@ -571,18 +701,18 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginLeft: 10,
   },
   contestStatusCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   statusRow: {
     flexDirection: 'row',
@@ -592,7 +722,7 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: 16,
-    color: '#607d8b',
+    color: colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -600,12 +730,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusText: {
-    color: '#fff',
+    color: colors.background,
     fontWeight: 'bold',
     fontSize: 12,
   },
   toggleButton: {
-    backgroundColor: '#1a237e',
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 8,
     padding: 12,
     flexDirection: 'row',
@@ -613,7 +743,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toggleButtonText: {
-    color: '#fff',
+    color: colors.background,
     fontWeight: 'bold',
     marginLeft: 8,
   },
@@ -622,28 +752,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   managementCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   managementTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 10,
     textAlign: 'center',
   },
   managementSubtitle: {
     fontSize: 12,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 5,
     textAlign: 'center',
   },
@@ -652,27 +782,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   statCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginTop: 5,
   },
   statLabel: {
     fontSize: 12,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 2,
   },
   statClickable: {
@@ -682,34 +812,34 @@ const styles = StyleSheet.create({
   },
   statClickableText: {
     fontSize: 10,
-    color: '#1a237e',
+    color: colors.title,
     marginLeft: 4,
     fontWeight: 'bold',
   },
   topDriverCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 15,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   rankBadge: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#1a237e',
+    backgroundColor: colors.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
   },
   rankText: {
-    color: '#fff',
+    color: colors.background,
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -719,11 +849,11 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
   },
   driverVotes: {
     fontSize: 14,
-    color: '#607d8b',
+    color: colors.subtitle,
     marginTop: 2,
   },
   emptyState: {
@@ -731,7 +861,7 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    color: '#ccc',
+    color: colors.subtitle,
     fontSize: 16,
     marginTop: 10,
   },
@@ -741,21 +871,21 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginBottom: 10,
   },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   activityInfo: {
     flex: 1,
@@ -763,15 +893,15 @@ const styles = StyleSheet.create({
   },
   activityText: {
     fontSize: 14,
-    color: '#263238',
+    color: colors.text,
   },
   activityTime: {
     fontSize: 12,
-    color: '#607d8b',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   logoutButton: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 8,
     padding: 15,
     flexDirection: 'row',
@@ -780,7 +910,7 @@ const styles = StyleSheet.create({
     margin: 20,
   },
   logoutText: {
-    color: '#fff',
+    color: colors.background,
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
@@ -793,12 +923,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
     width: '90%',
     maxWidth: 400,
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOpacity: 0.25,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
@@ -807,7 +937,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -817,16 +947,16 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#1a237e',
+    color: colors.title,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.surface,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -841,18 +971,88 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   cancelButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.surface,
   },
   addButton: {
-    backgroundColor: '#4caf50',
+    backgroundColor: colors.buttonPrimary,
   },
   cancelButtonText: {
-    color: '#607d8b',
+    color: colors.textSecondary,
     fontWeight: 'bold',
     fontSize: 16,
   },
   addButtonText: {
-    color: '#fff',
+    color: colors.background,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  // Estilos del modal de votos
+  modalLoading: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalLoadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  votesList: {
+    maxHeight: 400,
+  },
+  voteItem: {
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  voteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  voteUserName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginLeft: 6,
+  },
+  voteAction: {
+    fontSize: 12,
+    color: colors.subtitle,
+    marginBottom: 2,
+  },
+  voteDriverName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  voteTime: {
+    fontSize: 11,
+    color: colors.subtitle,
+    fontStyle: 'italic',
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  modalEmptyText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: colors.subtitle,
+    textAlign: 'center',
+  },
+  modalCloseButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalCloseButtonText: {
+    color: colors.background,
     fontWeight: 'bold',
     fontSize: 16,
   },

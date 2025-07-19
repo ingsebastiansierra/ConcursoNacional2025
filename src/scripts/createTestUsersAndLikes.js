@@ -8,20 +8,20 @@ const { getFirestore, collection, getDocs, doc, setDoc, updateDoc, increment, ad
 
 // Configuración de Firebase
 const firebaseConfig = {
-  apiKey: 'AIzaSyAHGIYFFwbp3HLT02WbIJ7pA_0k5RYVCow',
-  authDomain: 'concurso2025-2c887.firebaseapp.com',
-  projectId: 'concurso2025-2c887',
-  storageBucket: 'concurso2025-2c887.firebasestorage.app',
-  messagingSenderId: '829384550005',
-  appId: '1:829384550005:web:e2c1ecac6487a21ba6fa3c',
-  measurementId: 'G-F22YYC2RB6',
+  apiKey: "AIzaSyBzh0LvArSvGWUdMMZjD5xESqsxkFmrUnQ",
+  authDomain: "tractomulas2025.firebaseapp.com",
+  projectId: "tractomulas2025",
+  storageBucket: "tractomulas2025.appspot.com",
+  messagingSenderId: "944693735621",
+  appId: "1:944693735621:web:a7603c0434cfe76ea1c0ac",
+  measurementId: "G-9QW24GJY9M"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const NUM_USERS = 100;
+const NUM_USERS = 5;
 const MAX_VOTES = 10;
 const PASSWORD = 'test123456';
 
