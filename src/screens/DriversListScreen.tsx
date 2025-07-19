@@ -17,7 +17,7 @@ interface Driver {
   numeroCompetidor: number;
   NumeroLikes: number;
   placa: string;
-  imageUrl?: string;
+  imagen?: string; // Cambiar de imageUrl a imagen
   likes?: any[];
 }
 
@@ -57,9 +57,10 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
           numeroCompetidor: driverData.numeroCompetidor || 0,
           NumeroLikes: driverData.NumeroLikes || 0,
           placa: driverData.placa || 'Sin placa',
-          imageUrl: driverData.imageUrl,
+          imagen: driverData.imagen || driverData.imageUrl, // Usar el campo imagen
           likes
         });
+        
       }
       
       // Ordenar por número de likes (más votos primero)
@@ -172,17 +173,15 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
 
   const handleEditDriver = async (driver: Driver) => {
     try {
-      const db = getFirestore();
-      const driverRef = doc(db, 'drivers', driver.id);
-      const driverDoc = await getDoc(driverRef);
-      const driverData = driverDoc.data();
+      // Usar los datos del driver que ya tenemos en lugar de hacer otra consulta
       setEditDriver(driver);
-      setEditName(driverData?.conductor || '');
-      setEditNumber(driverData?.numeroCompetidor ? String(driverData.numeroCompetidor) : '');
-      setEditPlate(driverData?.placa || '');
-      setEditImageUrl(driverData?.imageUrl || '');
+      setEditName(driver.conductor || '');
+      setEditNumber(driver.numeroCompetidor ? String(driver.numeroCompetidor) : '');
+      setEditPlate(driver.placa || '');
+      setEditImageUrl(driver.imagen || '');
       setEditModalVisible(true);
     } catch (error) {
+      console.error('❌ Error cargando datos del piloto:', error);
       Alert.alert('❌ Error', 'No se pudieron cargar los datos del piloto para editar');
     }
   };
@@ -204,18 +203,23 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
     try {
       const db = getFirestore();
       const driverRef = doc(db, 'drivers', editDriver.id);
-      await updateDoc(driverRef, {
+      
+      const updateData = {
         conductor: editName,
-        numeroCompetidor: Number(editNumber),
+        numeroCompetidor: parseInt(editNumber, 10),
         placa: editPlate,
-        imageUrl: editImageUrl,
-      });
+        imagen: editImageUrl, // Guardar en el campo imagen
+      };
+      
+      await updateDoc(driverRef, updateData);
+      
       setEditModalVisible(false);
       setEditDriver(null);
       loadDrivers();
       Alert.alert('✅ Éxito', 'Piloto actualizado correctamente');
     } catch (error) {
-      Alert.alert('❌ Error', 'No se pudo actualizar el piloto');
+      console.error('❌ Error actualizando piloto:', error);
+      Alert.alert('❌ Error', `No se pudo actualizar el piloto: ${error.message}`);
     }
   };
 
@@ -330,7 +334,11 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
             <Text style={styles.modalTitle}>Editar Piloto</Text>
             {/* Imagen actual */}
             {editImageUrl ? (
-              <Image source={{ uri: editImageUrl }} style={styles.modalImage} />
+              <Image 
+                source={{ uri: editImageUrl }} 
+                style={styles.modalImage}
+                onError={() => console.log('Error cargando imagen en modal:', editImageUrl)}
+              />
             ) : (
               <View style={styles.modalImagePlaceholder}>
                 <Ionicons name="image" size={36} color={colors.subtitle} />
@@ -363,7 +371,7 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
             />
             <TextInput
               style={styles.modalInput}
-              placeholder="Link de la foto (imageUrl)"
+              placeholder="Link de la foto (imagen)"
               placeholderTextColor={colors.placeholder}
               value={editImageUrl}
               onChangeText={text => {
@@ -371,7 +379,9 @@ const DriversListScreen: React.FC<DriversListScreenProps> = ({ onLogout }) => {
                 const match = text.match(/drive\.google\.com\/file\/d\/([\w-]+)\//);
                 if (match) {
                   const id = match[1];
-                  setEditImageUrl(`https://drive.google.com/uc?export=view&id=${id}`);
+                  const convertedUrl = `https://drive.google.com/uc?export=view&id=${id}`;
+                  console.log('URL convertida:', convertedUrl);
+                  setEditImageUrl(convertedUrl);
                 } else {
                   setEditImageUrl(text);
                 }

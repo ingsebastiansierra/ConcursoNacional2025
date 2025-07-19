@@ -9,7 +9,7 @@ interface Driver {
   numeroCompetidor: number;
   NumeroLikes: number;
   conductor: string;
-  imageUrl: string;
+  imagen: string; // Cambiar de imageUrl a imagen
   placa: string;
 }
 
@@ -92,8 +92,8 @@ const RankingScreen = () => {
           </View>
           <View style={{ position: 'relative', marginRight: 18 }}>
             <Image
-              source={item.imageUrl && item.imageUrl.trim() !== ''
-                ? { uri: item.imageUrl }
+              source={item.imagen && item.imagen.trim() !== ''
+                ? { uri: item.imagen }
                 : require('../../assets/icon.png')
               }
               style={styles.compactImage}
@@ -117,8 +117,8 @@ const RankingScreen = () => {
         </View>
         <View style={{ position: 'relative', marginRight: 18 }}>
           <Image
-            source={item.imageUrl && item.imageUrl.trim() !== ''
-              ? { uri: item.imageUrl }
+            source={item.imagen && item.imagen.trim() !== ''
+              ? { uri: item.imagen }
               : require('../../assets/icon.png')
             }
             style={styles.compactImage}

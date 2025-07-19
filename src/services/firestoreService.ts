@@ -74,7 +74,14 @@ export const likeDriver = async (driverId: string, userId: string) => {
 export const subscribeToDrivers = (callback: (drivers: any[]) => void) => {
   const driversCol = collection(db, 'drivers');
   return onSnapshot(driversCol, (snapshot: QuerySnapshot<DocumentData>) => {
-    const drivers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const drivers = snapshot.docs.map(doc => {
+      const data = doc.data();
+      // Usar el ID real del documento de Firestore, no el campo id del documento
+      return { 
+        id: doc.id, // ID real del documento de Firestore
+        ...data 
+      };
+    });
     callback(drivers);
   });
 };
@@ -449,7 +456,7 @@ export const addNewDriver = async (driverData: {
     // Verificar si ya existe un piloto con ese número de competidor
     const existingDrivers = await getDocs(driversCol);
     const existingDriverByNumber = existingDrivers.docs.find(doc => 
-      doc.data().NCompetidor === driverData.NCompetidor
+      doc.data().numeroCompetidor === driverData.NCompetidor
     );
     
     if (existingDriverByNumber) {
@@ -474,9 +481,9 @@ export const addNewDriver = async (driverData: {
     // Crear el nuevo piloto
     const newDriver = {
       conductor: driverData.conductor,
-      NCompetidor: driverData.NCompetidor,
+      numeroCompetidor: driverData.NCompetidor, // Usar numeroCompetidor en lugar de NCompetidor
       placa: driverData.placa,
-      imageUrl: driverData.imageUrl || '',
+      imagen: driverData.imageUrl || '', // Guardar como imagen en lugar de imageUrl
       NumeroLikes: 0,
       createdAt: new Date().toISOString(),
     };
